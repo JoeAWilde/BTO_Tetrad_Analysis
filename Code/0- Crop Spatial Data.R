@@ -25,19 +25,19 @@ Abund <- filter(Abund, !`5figgrid` == "")
 Abund <- Abund %>%  select(c("County", "5figgrid"))
 
 ## Load in rough Devon outline for cropping large UK-wide data sets
-Tets <- st_read("SpatialData/SouthEnglandTetrads/SouthEngland_Tetrads.shp")
+Tets <- st_read("Data/SouthEnglandTetrads/SouthEngland_Tetrads.shp")
 Tets <- filter(Tets, GridRef %in% c(Abund$`5figgrid`)) 
 rm(Abund)
 
 ## Read in shapefile of protected area data
-SPA <- st_read("SpatialData/SPAs/GB_SPA_OSGB36_20220930.shp")
-SAC <- st_read("SpatialData/SACs/GB_SAC_OSGB36_20191031.shp")
-RAMSAR <- st_read("SpatialData/RAMSAR/UK_RAMSAR_BNG_20210308.shp")
-SSSI <- st_read("SpatialData/SSSIs/Sites_of_Special_Scientific_Interest_England.shp")
+SPA <- st_read("Data/SPAs/GB_SPA_OSGB36_20220930.shp")
+SAC <- st_read("Data/SACs/GB_SAC_OSGB36_20191031.shp")
+RAMSAR <- st_read("Data/RAMSAR/UK_RAMSAR_BNG_20210308.shp")
+SSSI <- st_read("Data/SSSIs/Sites_of_Special_Scientific_Interest_England.shp")
 
 ## Read in UK CEH habitat data for 2007 for just the south of England
 ## Use this to work out dominant habitat for each PA
-Hab <- rast("SpatialData/Habitat/LCM2015.tif")
+Hab <- rast("Data/Habitat/LCM2015.tif")
 
 ## Read on conversion table, converts raster numbers in Hab into meaningful codes
 ConvTab <- read_csv("Data/UKCEH_HabConversions.csv")
@@ -59,27 +59,27 @@ Tets <- st_transform(Tets, crs = st_crs(SPA))
 ## SPAs
 SPA_Ind <- st_intersects(SPA, Tets, sparse = TRUE)
 SPA_SEng <- SPA[(lengths(SPA_Ind) > 0) == TRUE,]
-write_sf(SPA_SEng, "Outputs/Script_0/SPA_SEng.shp") # read out the data set
+write_sf(SPA_SEng, "Outputs/script_0/SPA_SEng.shp") # read out the data set
 rm(SPA, SPA_Ind)
 
 ## SACs
 SAC_Ind <- st_intersects(SAC, Tets, sparse = TRUE)
 SAC_SEng <- SAC[(lengths(SAC_Ind) > 0) ==TRUE,]
-write_sf(SAC_SEng, "Outputs/Script_0/SAC_SEng.shp")
+write_sf(SAC_SEng, "Outputs/script_0/SAC_SEng.shp")
 rm(SAC, SAC_Ind)
 
 
 ## SSSIs
 SSSI_Ind <- st_intersects(SSSI, Tets, sparse = TRUE)
 SSSI_SEng <- SSSI[(lengths(SSSI_Ind) > 0) ==TRUE,]
-write_sf(SSSI_SEng, "Outputs/Script_0/SSSI_SEng.shp")
+write_sf(SSSI_SEng, "Outputs/script_0/SSSI_SEng.shp")
 rm(SSSI, SSSI_Ind)
 
 
 ## RAMSAR
 RAMSAR_Ind <- st_intersects(RAMSAR, Tets, sparse = TRUE)
 RAMSAR_SEng <- RAMSAR[(lengths(RAMSAR_Ind) > 0) ==TRUE,]
-write_sf(RAMSAR_SEng, "Outputs/Script_0/RAMSAR_SEng.shp")
+write_sf(RAMSAR_SEng, "Outputs/script_0/RAMSAR_SEng.shp")
 rm(RAMSAR, RAMSAR_Ind)
 
 
@@ -148,6 +148,6 @@ SSSI_SEngF <- filter(SSSI_SEng, !HabType %in% RemHab)
 
 
 ## Now write all these specific habitats to shape files
-write_sf(SPA_SEngF, "Outputs/Script_0/SPA_SEng_SuitHab.shp")
-write_sf(SAC_SEngF, "Outputs/Script_0/SAC_SEng_SuitHab.shp")
-write_sf(SSSI_SEngF, "Outputs/Script_0/SSSI_SEng_SuitHab.shp")
+write_sf(SPA_SEngF, "Outputs/script_0/SPA_SEng_SuitHab.shp")
+write_sf(SAC_SEngF, "Outputs/script_0/SAC_SEng_SuitHab.shp")
+write_sf(SSSI_SEngF, "Outputs/script_0/SSSI_SEng_SuitHab.shp")

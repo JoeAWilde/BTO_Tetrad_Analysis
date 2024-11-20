@@ -1,3 +1,10 @@
+#-----------Intro-------------#
+
+# Author: Joe A. Wilde
+# Creation: 20/11/2024
+
+#----------------------------#
+
 #Load required packages ####
 library(tidyverse)
 library(tidylog)

@@ -2,9 +2,6 @@
 
 # Author: Luke Ozsanlav-Harris
 # Creation: 16/05/2023
-# Goal: Calculate % of each tetrad covered by PAs
-
-# Data Source: http://devonbirdatlas.org/distribution-maps/tetrad-maps/
 
 #----------------------------#
 
@@ -32,7 +29,7 @@ Abund <- Abund %>%  dplyr::select(-c("V5", "V6", "V8", "x", "y", "6figgrid", "du
 
 
 ## Load in Tetrad data and filter to the terads that we have abundance data for
-Tets <- st_read("SpatialData/SouthEnglandTetrads/SouthEngland_Tetrads.shp")
+Tets <- st_read("Data/SouthEnglandTetrads/SouthEngland_Tetrads.shp")
 Tets <- filter(Tets, GridRef %in% c(Abund$`5figgrid`)) 
 
 ## quick plot to visualize
@@ -218,7 +215,7 @@ AllIntersects <- AllIntersJoin %>%
                   select(GridRef) 
 
 ## Add Uk outline
-UK <- st_read("SpatialData/CoastOutline/UK_Coatline.shp")
+UK <- st_read("Data/CoastOutline/UK_Coastline.shp")
 UK <- st_transform(UK, crs = st_crs(Tets)) # change crs to th same as tetrads
 
 ## Create bounding box for the map
@@ -250,11 +247,7 @@ PAMap <- ggplot() +
 
 ## save plot
 ggsave(plot = PAMap, 
-       filename = "Outputs/Script_1/PA_Tetrad_Map.png",
-       units = "mm", width = 250, height = 160, dpi = 300,   
-)
-ggsave(plot = PAMap, 
-       filename = "WriteUp/images/PA_Tetrad_Map.png",
+       filename = "Outputs/script_1/PA_Tetrad_Map.png",
        units = "mm", width = 250, height = 160, dpi = 300,   
 )
 
@@ -288,15 +281,9 @@ PAMap2 <- ggplot() +
 
 ## save plot
 ggsave(plot = PAMap2, 
-       filename = "Outputs/Script_1/PA_Tetrad_HeatMap.png",
+       filename = "Outputs/script_1/PA_Tetrad_HeatMap.png",
        units = "mm", width = 250, height = 160, dpi = 300,   
 )
-ggsave(plot = PAMap2, 
-       filename = "WriteUp/images/PA_Tetrad_HeatMap.png",
-       units = "mm", width = 250, height = 160, dpi = 300,   
-)
-
-
 
 
 ##-----------------------------------##
@@ -308,7 +295,7 @@ rm(SAC, SPA, SSSI, RAMSAR, SAC_Un, SPA_Un, SSSI_Un, RAMSAR_Un)
 
 ## Load in Tetrad data and filter to the terads that we have abundance data for
 ## load them in again just so start from a blank slate
-Tets <- st_read("SpatialData/SouthEnglandTetrads/SouthEngland_Tetrads.shp")
+Tets <- st_read("Data/SouthEnglandTetrads/SouthEngland_Tetrads.shp")
 Tets <- filter(Tets, GridRef %in% c(Abund$`5figgrid`))
 
 ## Read in protected area data with ecologically irrelevant habitats removed
@@ -398,7 +385,7 @@ AllIntersects2 <- AllIntersJoin2 %>%
   select(GridRef) 
 
 ## Add Uk outline
-UK <- st_read("SpatialData/CoastOutline/UK_Coatline.shp")
+UK <- st_read("Data/CoastOutline/UK_Coastline.shp")
 UK <- st_transform(UK, crs = st_crs(Tets)) # change crs to th same as tetrads
 
 ## Create bounding box for the map
@@ -429,14 +416,9 @@ PAMap3 <- ggplot() +
 
 ## save plot
 ggsave(plot = PAMap3, 
-       filename = "Outputs/Script_1/PA_Tetrad_Map_SuitHab.png",
+       filename = "Outputs/script_1/PA_Tetrad_Map_SuitHab.png",
        units = "mm", width = 250, height = 160, dpi = 300,   
 )
-ggsave(plot = PAMap3,
-       filename = "WriteUp/images/PA_Tetrad_Map_SuitHab.png",
-       units = "mm", width = 250, height = 160, dpi = 300,
-)
-
 
 
 ## plot to visualize heat map of PA coverage
@@ -467,16 +449,9 @@ PAMap4 <- ggplot() +
 
 ## save plot
 ggsave(plot = PAMap4, 
-       filename = "Outputs/Script_1/PA_Tetrad_HeatMap_SuitHab.png",
+       filename = "Outputs/script_1/PA_Tetrad_HeatMap_SuitHab.png",
        units = "mm", width = 250, height = 160, dpi = 300,   
 )
-ggsave(plot = PAMap4,
-       filename = "WriteUp/images/PA_Tetrad_HeatMap_SuitHab.png",
-       units = "mm", width = 250, height = 160, dpi = 300,
-)
-
-
-
 
 ##--------------------------------------------------##
 #### 9. Join overlaps to main data set (Suit Hab) ####
@@ -503,8 +478,8 @@ coords <- as.data.frame(st_coordinates(st_centroid(TetAb$geometry)))
 TetAb <- cbind(TetAb, coords)
 
 ## Write out data as a shapefile
-write_sf(TetAb, "Outputs/Script_1/ModelData_Spatial.shp")
+write_sf(TetAb, "Outputs/script_1/ModelData_Spatial.shp")
 
 ## write out data with the spatial part removed
 TetFinal <- TetAb %>% st_drop_geometry() %>% select(-geometry)
-write_csv(TetFinal, file = "Outputs/Script_1/ModelData.csv")
+write_csv(TetFinal, file = "Outputs/script_1/ModelData.csv")
