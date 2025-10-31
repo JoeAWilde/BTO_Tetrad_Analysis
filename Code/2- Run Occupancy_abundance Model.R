@@ -20,13 +20,16 @@ library(ggspatial)
 library(HDInterval)
 library(ggpubr)
 library(ggnewscale)
+library(ggblend)
+library(kableExtra)
+options(kableExtra.latex.load_packages = FALSE)
 
 #Read in the data ####
 df <- read.table("Outputs/script_1/ModelData.csv", sep = ",", header = T, fill = T) %>%
   na.omit() %>%
   pivot_longer(cols = c(pheasant_breed, pheasant_wint), names_to = "time_period", values_to = "abund") %>%
   filter(abund != "M") %>%
-  mutate(rel_abund = 0)
+  mutate(new_abund = 0)
 
 #Convert the categorical abundance measures to continuous ####
 for(i in 1:nrow(df)) {
@@ -35,7 +38,7 @@ for(i in 1:nrow(df)) {
     pb$tick(0)
   }
   if(df$County[i] == "Cornwall") {
-    df$rel_abund[i] <- case_when(df$abund[i] == "0" ~ 0,
+    df$new_abund[i] <- case_when(df$abund[i] == "0" ~ 0,
                                  df$abund[i] == "0.11-1" ~ 0.55,
                                  df$abund[i] == "0.2-1" ~ 0.6,
                                  df$abund[i] == "1" ~ 1,
@@ -52,7 +55,7 @@ for(i in 1:nrow(df)) {
                                  df$abund[i] == "5.33-35" ~ 20.165, 
                                  df$abund[i] == "7-85" ~ 46)
   } else if(df$County[i] == "Devon") {
-    df$rel_abund[i] <- case_when(df$abund[i] == "0" ~ 0,
+    df$new_abund[i] <- case_when(df$abund[i] == "0" ~ 0,
                                  df$abund[i] == "1" ~ 0.5,
                                  df$abund[i] == "2" ~ 1.5,
                                  df$abund[i] == "3" ~ 3.5,
@@ -61,7 +64,7 @@ for(i in 1:nrow(df)) {
                                  df$abund[i] == "6" ~ 35,
                                  df$abund[i] == "7" ~ 50)
   } else if(df$County[i] == "Berkshire") {
-    df$rel_abund[i] <- case_when(df$abund[i] == "0" ~ (0*7.3),
+    df$new_abund[i] <- case_when(df$abund[i] == "0" ~ (0*7.3),
                                  df$abund[i] == "1" ~ (0.1*7.3),
                                  df$abund[i] == "2" ~ (0.25*7.3),
                                  df$abund[i] == "3" ~ (0.75*7.3),
@@ -70,24 +73,31 @@ for(i in 1:nrow(df)) {
                                  df$abund[i] == "6" ~ (2.25*7.3),
                                  df$abund[i] == "7" ~ (2.5*7.3))
   } else {
-    df$rel_abund[i] <- as.numeric(df$abund[i])
+    df$new_abund[i] <- as.numeric(df$abund[i])
   }
   
   pb$tick()
 }
 
 #Tidy the dataframe to be used in the analysis ####
-post_df <- df  %>%
-  group_by(County) %>%
+post_df <- df %>%
   mutate(
-    tet = rep(1:length(unique(X)), each = 2)
+    new_tet = as.integer(factor(X, levels = unique(X))), 
+    time_period = factor(time_period, levels = c("pheasant_wint", "pheasant_breed"))
+  ) %>%
+  group_by(County, time_period) %>% 
+  mutate(
+    N_birds = sum(new_abund)
   ) %>%
   ungroup() %>%
-  mutate(new_tet = rep(1:(nrow(.) / 2), each = 2), 
-         time_period = factor(time_period, levels = c("pheasant_wint", "pheasant_breed"))) %>%
-  group_by(County, time_period) %>% 
-  mutate(N_Birds = sum(rel_abund)) %>%
-  ungroup()
+  group_by(time_period) %>%
+  mutate(
+    rel_abund = new_abund / max(N_birds)
+  ) %>%
+  ungroup() %>%
+  mutate(
+    new_county = as.integer(factor(County, levels = unique(County)))
+  )
 
 #Create a dataframe of predictors
 options(na.action='na.pass')
@@ -126,14 +136,16 @@ stan_data <- list(
   N = nrow(post_df), 
   N_tets = length(unique(post_df$new_tet)), 
   tets = post_df$new_tet,
+  N_counties = length(unique(post_df$new_county)),
+  county = post_df$new_county,
   X = ncol(preds), 
   preds = preds, 
   occ = ifelse(post_df$rel_abund> 0, 1, 0), 
-  abund = post_df$rel_abund / post_df$N_Birds
+  abund = post_df$rel_abund
 )
 
 #Compile the model ####
-model <- cmdstan_model("code/Stan scripts/occ_abund_moodel.stan")
+model <- cmdstan_model("Code/Stan script/occ_abund_model.stan")
 
 #Sample from the model ####
 fit <- model$sample(
@@ -144,8 +156,11 @@ fit <- model$sample(
   parallel_chains = 4
 )
 
-#Save the model object ####
-fit$save_object("Outputs/script_2/occ_abund_run.rds")
+# #Save the model object ####
+# fit$save_object("Outputs/script_2/occ_abund_run.rds")
+
+#Load model object
+fit <- readRDS("Outputs/script_2/occ_abund_run.rds")
 
 #Create a list of parameters of interest ####
 pars <- c("a_occ_mu", "sd_occ_tets", "a_abund_mu", "sd_abund_tets", "beta", "p_det_eta", "phi")
@@ -213,19 +228,21 @@ post_df$time_period <- ifelse(post_df$time_period == "pheasant_wint", "Winter", 
 
 #Plot the predcicted effect of protected area coverage ####
 p1 <- ggplot() + 
-  geom_point(data = post_df, aes(x = PA_suit, y = rel_abund / N_Birds, shape = factor(County), colour = time_period),
-             alpha = 0.6, size = 5) + 
-  geom_ribbon(data = sim_df, aes(x = PA_suit, ymin = y_low, ymax = y_upp, group = time_period), fill = "grey", alpha = 0.6) + 
-  geom_smooth(data = sim_df, aes(x = PA_suit, y = y_mu, colour = time_period), se = F, linewidth = 2) + 
+  # geom_point(data = post_df, aes(x = PA_suit, y = rel_abund / N_Birds, shape = factor(County), colour = time_period),
+  #            alpha = 0.6, size = 5) + 
+  geom_ribbon(data = sim_df, aes(x = PA_suit, ymin = y_low, ymax = y_upp, group = time_period, fill = time_period), alpha = 0.33)  |> blend("multiply") + 
+  geom_smooth(data = sim_df, aes(x = PA_suit, y = y_mu, colour = time_period), se = F, linewidth = 3) + 
   scale_color_manual(name = "Time period", values = c("orange2", "purple3")) +
+  scale_fill_manual(name = "Time period", values = c("orange2", "purple3")) +
   scale_shape_manual(name = "County", values = c(4, 0, 2, 1)) + 
-  scale_y_continuous(name = "Relative pheasant abundance", limits = c(0, 0.01)) + 
+  scale_y_continuous(name = "Relative pheasant abundance") + #, limits = c(0, 0.01)) + 
   scale_x_continuous(name = "Proportion of protected area coverage") + 
   theme_classic(base_size = 45) + 
-  theme(legend.key.width = unit(2, "cm"))
+  theme(legend.key.width = unit(2, "cm")) + 
+  coord_cartesian(ylim = c(0, 0.0018))
 
 p1
-ggsave(p1, filename = "Outputs/plots/PA_effect.png", units = "px", height = 4320, width = 7890)
+ggsave(p1, filename = "Outputs/plots/MS_final_PA_effect.png", units = "px", height = 4320, width = 7890)
 
 #Make plot of effect of bw ####
 #Create dataframe to simulate from ####
@@ -260,15 +277,252 @@ bw_sim_df$y_upp <- HDInterval::hdi(bw_y_sim)[2, ]
 
 #Plot the effect of broadlead woodland ####
 p2 <- ggplot() + 
-  geom_point(data = post_df, aes(x = broad_wood/100, y = rel_abund / N_Birds, shape = factor(County), colour = time_period),
-             alpha = 0.4, size = 5) + 
-  geom_ribbon(data = bw_sim_df, aes(x = broad_wood/100, ymin = y_low, ymax = y_upp, group = time_period), fill = "grey", alpha = 0.4) + 
-  geom_smooth(data = bw_sim_df, aes(x = broad_wood/100, y = y_mu, colour = time_period), se = F, linewidth = 2) + 
+  # geom_point(data = post_df, aes(x = broad_wood/100, y = rel_abund / N_Birds, shape = factor(County), colour = time_period),
+  #            alpha = 0.4, size = 5) + 
+  geom_ribbon(data = bw_sim_df, aes(x = broad_wood/100, ymin = y_low, ymax = y_upp, group = time_period, fill = time_period), alpha = 0.33) |> blend("multiply") + 
+  geom_smooth(data = bw_sim_df, aes(x = broad_wood/100, y = y_mu, colour = time_period), se = F, linewidth = 3) + 
   scale_color_manual(name = "Time period", values = c("orange2", "purple3")) +
+  scale_fill_manual(name = "Time period", values = c("orange2", "purple3")) +
   scale_shape_manual(name = "County", values = c(4, 0, 2, 1)) + 
-  scale_y_continuous(name = "Relative pheasant abundance", limits = c(0, 0.01)) + 
+  scale_y_continuous(name = "Relative pheasant abundance") + #, limits = c(0, 0.01)) + 
   scale_x_continuous(name = "Proportion of broadleaf woodland coverage") + 
   theme_classic(base_size = 45) +
-  theme(legend.key.width = unit(2, "cm"))
+  theme(legend.key.width = unit(2, "cm")) + 
+  coord_cartesian(ylim = c(0, 0.0035))
 p2
-ggsave(p2, filename = "Outputs/plots/bw_effect.png", units = "px", height = 4320, width = 7890)
+ggsave(p2, filename = "Outputs/plots/MS_final_bw_effect.png", units = "px", height = 4320, width = 7890)
+
+
+#Create table of model summary
+
+m1tidy <- fit$summary(pars)
+
+names(m1tidy)<-c("Parameter", 
+                 "Mean", "Median", "SD", "Mad", 
+                 "5% quantile", "95% quantile", "R-hat", "Bulk", "Tail")
+
+m1hdis <- hdi(fit$draws(pars, format = "df")[, 1:31], credMass=0.95)
+
+m1tidy$Upper <- m1hdis[2,]
+m1tidy$Lower <- m1hdis[1,]
+
+
+m1tidy$Group <- c(
+  rep("Pr(Occupied)", 2), 
+  rep("Abundance intercept", 2), 
+  rep("Abundance covariates", 25), 
+  "Pr(Detection)", 
+  "Family-specific parameter (Beta)"
+)
+
+m1tidy$Parameter <- c(
+  "Population mean", 
+  "Population SD", 
+  "Population mean", 
+  "Population SD", 
+  "County: Berkshire → Cornwall", 
+  "County: Berkshire → Devon", 
+  "County: Berkshire → Hertfordshire", 
+  "Time period: winter → breeding", 
+  "Habitat: Broadlead woodland", 
+  "Habitat: Coniferous woodland", 
+  "Habitat: Arable", 
+  "Habitat: Improved grassland", 
+  "Habitat: Semi-natural grassland", 
+  "Habitat: Mountain, heath and bog", 
+  "Habitat: Saltwater", 
+  "Habitat: Freshwater", 
+  "Habitat: Coastal", 
+  "Habitat: Built-up areas and gardens", 
+  "Shannon habitat diversity index", 
+  "Protected area (PA) coverage", 
+  "PA coverage × Time period: winter", 
+  "PA coverage × Time period: winter × County: Berkshire", 
+  "PA coverage × Time period: winter × County: Cornwall", 
+  "PA coverage × Time period: winter × County: Devon", 
+  "PA coverage × Time period: winter × County: Hertfordshire", 
+  "PA coverage × Time period: breeding × County: Berkshire", 
+  "PA coverage × Time period: breeding × County: Cornwall", 
+  "PA coverage × Time period: breeding × County: Devon", 
+  "PA coverage × Time period: breeding × County: Hertfordshire", 
+  "Pr(detection)", 
+  "Phi (precision)"
+)
+
+p_det_draws <- fit$draws("p_det_eta", format = "df") %>%
+  pull(p_det_eta) %>%
+  boot::inv.logit(.)
+
+m1tidy[30, 2] <- mean(p_det_draws)
+m1tidy[30, 4] <- sd(p_det_draws)
+m1tidy[30, 12] <- hdi(p_det_draws)[1]
+m1tidy[30, 11] <- hdi(p_det_draws)[2]
+
+m1tidy[,2:(length(m1tidy)-1)] <- round(m1tidy[2:(length(m1tidy)-1)], digits = 2)
+m1tidy$`R-hat` <- round(m1tidy$`R-hat`, digits = 1)
+m1tidy[,9:10] <- round(m1tidy[,9:10], digits = 0)
+m1tidy[,11:12] <- round(m1tidy[, 11:12], digits = 2)
+
+m1clean <- m1tidy %>%
+  select(-c(`5% quantile`, `95% quantile`, Median, Mad, Group)) %>%
+  select(Parameter, Mean, SD, Lower, Upper, `R-hat`, Bulk, Tail) %>%
+  .[c(30, 1:29, 31), ] %>%
+  data.frame()
+
+table1 <- knitr::kable(m1clean, row.names = FALSE) %>%
+  kableExtra::kable_classic(full_width = F) %>%
+  pack_rows("Pr(occupied) (logit)",start_row = 2, end_row = 3, 
+            label_row_css = "background-color: white;") %>%
+  pack_rows("Abundance (logit)", start_row = 4, end_row = 30, 
+            label_row_css = "background-color: white;") %>%
+  pack_rows("Intercept",start_row = 4, end_row = 5, 
+            label_row_css = "background-color: white;") %>%
+  pack_rows("Covariates",start_row = 6, end_row = 30, 
+            label_row_css = "background-color: white;") %>%
+  pack_rows("Two-way interactions",start_row = 22, end_row = 22, 
+            label_row_css = "background-color: white;") %>%
+  pack_rows("Three-way interactions",start_row = 23, end_row = 30, 
+            label_row_css = "background-color: white;") %>%
+  pack_rows("Family-specific parameters",start_row = 31, end_row = 31, 
+            label_row_css = "background-color: white;") %>%
+  row_spec(0,background = "white") %>%
+  add_header_above(c(" " = 1, "Posterior values" = 2, "95% Highest Density Limits" = 2," " = 1, "Effective sample size" = 2)) %>%
+  cat(., file = "Outputs/tables/model_output_tables.html")
+
+
+#extract residuals and plot spatially
+y_pred_abund <- fit$draws("occ_sim", format = "df") %>%
+  data.frame() %>%
+  select(-c(.chain, .draw, .iteration)) %>%
+  pivot_longer(cols = everything()) %>%
+  filter(value != 0) %>%
+  group_by(name) %>%
+  summarise(mean_value = mean(value), .groups = "drop") %>%
+  mutate(
+    idx = substr(name, 9, 999), 
+    idx = as.integer(substr(idx, 1, (nchar(idx)-1)))
+  ) %>%
+  select(-name) %>%
+  arrange(idx)
+
+head(y_pred_abund)
+
+post_df$true_rel_abund <- post_df$rel_abund / post_df$N_Birds
+post_df$abund_pred <- y_pred_abund$mean_value
+
+abund_resid_df <- post_df %>%
+  mutate(
+    abund_resid = if_else(true_rel_abund != 0, true_rel_abund - abund_pred, NA)
+  )
+
+cols <- RColorBrewer::brewer.pal(5, "Dark2") %>%
+  .[4:5]
+
+#Devon resid plot
+wint_dev_df <- abund_resid_df %>% 
+  filter(time_period == "pheasant_wint" & County == "Devon")
+
+wint_dev_plot <- ggplot() + 
+  geom_point(data = wint_dev_df, aes(x = X, y = Y, colour = abund_resid), size = 1) + 
+  scale_colour_gradientn(name = "Relative abundance residuals \n(grey = not present/detected)", 
+    colors = c("low" = cols[1], "high" = cols[2])) + 
+  ggtitle("Devon - winter") + 
+  theme_bw(base_size = 5)
+
+ggsave(wint_dev_plot, path = "Outputs/plots/MS_final_plots/residual_plots/", filename = "devon_winter_resid.png", 
+  units = "px", height = 990, width = 1280)
+
+breed_dev_df <- abund_resid_df %>% 
+  filter(time_period == "pheasant_breed" & County == "Devon")
+
+breed_dev_plot <- ggplot() + 
+  geom_point(data = breed_dev_df, aes(x = X, y = Y, colour = abund_resid), size = 1) + 
+  scale_colour_gradientn(name = "Relative abundance residuals \n(grey = not present/detected)", 
+    colors = c("low" = cols[1], "high" = cols[2])) + 
+  ggtitle("Devon - breeding") + 
+  theme_bw(base_size = 5)
+
+ggsave(breed_dev_plot, path = "Outputs/plots/MS_final_plots/residual_plots/", filename = "devon_breed_resid.png", 
+  units = "px", height = 990, width = 1280)
+
+#Cornwall resid plot
+wint_cw_df <- abund_resid_df %>% 
+  filter(time_period == "pheasant_wint" & County == "Cornwall")
+
+wint_cw_plot <- ggplot() + 
+  geom_point(data = wint_cw_df, aes(x = X, y = Y, colour = abund_resid), size = 1) + 
+  scale_colour_gradientn(name = "Relative abundance residuals \n(grey = not present/detected)", 
+    colors = c("low" = cols[1], "high" = cols[2])) + 
+  ggtitle("Cornwall - winter") + 
+  theme_bw(base_size = 5)
+
+ggsave(wint_cw_plot, path = "Outputs/plots/MS_final_plots/residual_plots/", filename = "cornwall_winter_resid.png", 
+  units = "px", height = 990, width = 1280)
+
+breed_cw_df <- abund_resid_df %>% 
+  filter(time_period == "pheasant_breed" & County == "Cornwall")
+
+breed_cw_plot <- ggplot() + 
+  geom_point(data = breed_cw_df, aes(x = X, y = Y, colour = abund_resid), size = 1) + 
+  scale_colour_gradientn(name = "Relative abundance residuals \n(grey = not present/detected)", 
+    colors = c("low" = cols[1], "high" = cols[2])) + 
+  ggtitle("Cornwall - breeding") + 
+  theme_bw(base_size = 5)
+
+ggsave(breed_cw_plot, path = "Outputs/plots/MS_final_plots/residual_plots/", filename = "cornwall_breed_resid.png", 
+  units = "px", height = 990, width = 1280)
+
+
+#Berkshire resid plot
+wint_bk_df <- abund_resid_df %>% 
+  filter(time_period == "pheasant_wint" & County == "Berkshire")
+
+wint_bk_plot <- ggplot() + 
+  geom_point(data = wint_bk_df, aes(x = X, y = Y, colour = abund_resid), size = 2) + 
+  scale_colour_gradientn(name = "Relative abundance residuals \n(grey = not present/detected)", 
+    colors = c("low" = cols[1], "high" = cols[2])) + 
+  ggtitle("Berkshire - winter") + 
+  theme_bw(base_size = 3)
+
+ggsave(wint_bk_plot, path = "Outputs/plots/MS_final_plots/residual_plots/", filename = "Berkshire_winter_resid.png", 
+  units = "px", height = 420, width = 1280)
+
+breed_bk_df <- abund_resid_df %>% 
+  filter(time_period == "pheasant_breed" & County == "Berkshire")
+
+breed_bk_plot <- ggplot() + 
+  geom_point(data = breed_bk_df, aes(x = X, y = Y, colour = abund_resid), size = 2) + 
+  scale_colour_gradientn(name = "Relative abundance residuals \n(grey = not present/detected)", 
+    colors = c("low" = cols[1], "high" = cols[2])) + 
+  ggtitle("Berkshire - breeding") + 
+  theme_bw(base_size = 3)
+
+ggsave(breed_bk_plot, path = "Outputs/plots/MS_final_plots/residual_plots/", filename = "Berkshire_breed_resid.png", 
+  units = "px", height = 420, width = 1280)
+
+#Hertfordshire resid plot
+wint_hf_df <- abund_resid_df %>% 
+  filter(time_period == "pheasant_wint" & County == "Hertfordshire")
+
+wint_hf_plot <- ggplot() + 
+  geom_point(data = wint_hf_df, aes(x = X, y = Y, colour = abund_resid), size = 2) + 
+  scale_colour_gradientn(name = "Relative abundance residuals \n(grey = not present/detected)", 
+    colors = c("low" = cols[1], "high" = cols[2])) + 
+  ggtitle("Hertfordshire - winter") + 
+  theme_bw(base_size = 5)
+
+ggsave(wint_hf_plot, path = "Outputs/plots/MS_final_plots/residual_plots/", filename = "Hertfordshire_winter_resid.png", 
+  units = "px", height = 780, width = 1280)
+
+breed_hf_df <- abund_resid_df %>% 
+  filter(time_period == "pheasant_breed" & County == "Hertfordshire")
+
+breed_hf_plot <- ggplot() + 
+  geom_point(data = breed_hf_df, aes(x = X, y = Y, colour = abund_resid), size = 2) + 
+  scale_colour_gradientn(name = "Relative abundance residuals \n(grey = not present/detected)", 
+    colors = c("low" = cols[1], "high" = cols[2])) + 
+  ggtitle("Hertfordshire - breeding") + 
+  theme_bw(base_size = 5)
+
+ggsave(breed_hf_plot, path = "Outputs/plots/MS_final_plots/residual_plots/", filename = "Hertfordshire_breed_resid.png", 
+  units = "px", height = 780, width = 1280)

@@ -384,6 +384,9 @@ AllIntersects2 <- AllIntersJoin2 %>%
   mutate(intersect_area = st_area(.)) %>% 
   select(GridRef) 
 
+st_write(AllIntersects2, "Outputs/script_1/Suitable_Tetrads.shp")
+
+
 ## Add Uk outline
 UK <- st_read("Data/CoastOutline/UK_Coastline.shp")
 UK <- st_transform(UK, crs = st_crs(Tets)) # change crs to th same as tetrads

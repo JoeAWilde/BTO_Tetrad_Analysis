@@ -1,0 +1,11 @@
+1_PA_effect: as was in the submitted report - all raw data is shown, and the shaded regions showing uncertainty are not coloured by time period
+
+2_PA_effect_no_raw_data: no raw data is shown, the shaded regions remain grey
+
+3_PA_effect_shaded_ribbon: all raw data is shown, but the shaded region showing uncertainty is coloured by time period so as to make it slightly clearer which line each region belongs to
+
+4_PA_effect_no_raw_data_shaded_region: no raw data is shown and the shaded regions are coloured to match their respective lines
+
+5_PA_effect_cropped: SOME raw data is shown, but the axes are cropped to still show the slope of the line. The threshold at which data are excluded from the plot is just arbitrarily chosen by me to see what best shows the slope of the line.
+
+6_PA_effect_cropped_shaded_ribbon: SOME raw data is shown (same threshold as #5), and the shaded regions are coloured to match their respective lines.
