@@ -156,27 +156,27 @@ fit <- model$sample(
   parallel_chains = 4
 )
 
-# #Save the model object ####
-# fit$save_object("Outputs/script_2/occ_abund_run.rds")
+#Save the model object ####
+fit$save_object("Outputs/script_2/occ_abund_run.rds")
 
 #Load model object
 fit <- readRDS("Outputs/script_2/occ_abund_run.rds")
 
 #Create a list of parameters of interest ####
-pars <- c("a_occ_mu", "sd_occ_tets", "a_abund_mu", "sd_abund_tets", "beta", "p_det_eta", "phi")
+pars <- c("a_occ_mu", "sd_occ_tets", "a_abund_mu", "sd_abund_tets", "beta", "p_det_eta", "phi_county")
 
 #Visualise a trace plot of model run ####
 mcmc_trace(fit$draws(pars))
 
 #Output summary table for model run ####
-fit$print(pars, max_rows = 31)
+fit$print(pars, max_rows = 34)
 
 #Visualise posterior distributions of fixed effect coefficients ####
 mcmc_areas(fit$draws("beta")) + 
   scale_y_discrete(labels = names(preds))
 
 #Visualise posterior predictive check ####
-pp_check((post_df$rel_abund / post_df$N_Birds), fit$draws("occ_sim", format = "matrix"), 
+pp_check(post_df$rel_abund , fit$draws("occ_sim", format = "matrix"), 
          ppc_dens_overlay)
 
 
@@ -239,7 +239,7 @@ p1 <- ggplot() +
   scale_x_continuous(name = "Proportion of protected area coverage") + 
   theme_classic(base_size = 45) + 
   theme(legend.key.width = unit(2, "cm")) + 
-  coord_cartesian(ylim = c(0, 0.0018))
+  coord_cartesian(ylim = c(0, 0.00125))
 
 p1
 ggsave(p1, filename = "Outputs/plots/MS_final_PA_effect.png", units = "px", height = 4320, width = 7890)
@@ -288,20 +288,19 @@ p2 <- ggplot() +
   scale_x_continuous(name = "Proportion of broadleaf woodland coverage") + 
   theme_classic(base_size = 45) +
   theme(legend.key.width = unit(2, "cm")) + 
-  coord_cartesian(ylim = c(0, 0.0035))
+  coord_cartesian(ylim = c(0, 0.002))
 p2
 ggsave(p2, filename = "Outputs/plots/MS_final_bw_effect.png", units = "px", height = 4320, width = 7890)
 
 
 #Create table of model summary
-
 m1tidy <- fit$summary(pars)
 
 names(m1tidy)<-c("Parameter", 
                  "Mean", "Median", "SD", "Mad", 
                  "5% quantile", "95% quantile", "R-hat", "Bulk", "Tail")
 
-m1hdis <- hdi(fit$draws(pars, format = "df")[, 1:31], credMass=0.95)
+m1hdis <- hdi(fit$draws(pars, format = "df")[, 1:34], credMass=0.95)
 
 m1tidy$Upper <- m1hdis[2,]
 m1tidy$Lower <- m1hdis[1,]
@@ -312,7 +311,7 @@ m1tidy$Group <- c(
   rep("Abundance intercept", 2), 
   rep("Abundance covariates", 25), 
   "Pr(Detection)", 
-  "Family-specific parameter (Beta)"
+  rep("Family-specific parameter (Beta)", 4)
 )
 
 m1tidy$Parameter <- c(
@@ -324,7 +323,7 @@ m1tidy$Parameter <- c(
   "County: Berkshire → Devon", 
   "County: Berkshire → Hertfordshire", 
   "Time period: winter → breeding", 
-  "Habitat: Broadlead woodland", 
+  "Habitat: Broadleaf woodland", 
   "Habitat: Coniferous woodland", 
   "Habitat: Arable", 
   "Habitat: Improved grassland", 
@@ -346,7 +345,10 @@ m1tidy$Parameter <- c(
   "PA coverage × Time period: breeding × County: Devon", 
   "PA coverage × Time period: breeding × County: Hertfordshire", 
   "Pr(detection)", 
-  "Phi (precision)"
+  "Phi (precision): Devon", 
+  "Phi (precision): Hertfordshire", 
+  "Phi (precision): Berkshire", 
+  "Phi (precision): Cornwall"
 )
 
 p_det_draws <- fit$draws("p_det_eta", format = "df") %>%
@@ -366,7 +368,7 @@ m1tidy[,11:12] <- round(m1tidy[, 11:12], digits = 2)
 m1clean <- m1tidy %>%
   select(-c(`5% quantile`, `95% quantile`, Median, Mad, Group)) %>%
   select(Parameter, Mean, SD, Lower, Upper, `R-hat`, Bulk, Tail) %>%
-  .[c(30, 1:29, 31), ] %>%
+  .[c(30, 1:29, 31:34), ] %>%
   data.frame()
 
 table1 <- knitr::kable(m1clean, row.names = FALSE) %>%
@@ -383,7 +385,7 @@ table1 <- knitr::kable(m1clean, row.names = FALSE) %>%
             label_row_css = "background-color: white;") %>%
   pack_rows("Three-way interactions",start_row = 23, end_row = 30, 
             label_row_css = "background-color: white;") %>%
-  pack_rows("Family-specific parameters",start_row = 31, end_row = 31, 
+  pack_rows("Family-specific parameters",start_row = 31, end_row = 34, 
             label_row_css = "background-color: white;") %>%
   row_spec(0,background = "white") %>%
   add_header_above(c(" " = 1, "Posterior values" = 2, "95% Highest Density Limits" = 2," " = 1, "Effective sample size" = 2)) %>%
@@ -395,7 +397,7 @@ y_pred_abund <- fit$draws("occ_sim", format = "df") %>%
   data.frame() %>%
   select(-c(.chain, .draw, .iteration)) %>%
   pivot_longer(cols = everything()) %>%
-  filter(value != 0) %>%
+  # filter(value != 0) %>%
   group_by(name) %>%
   summarise(mean_value = mean(value), .groups = "drop") %>%
   mutate(
@@ -407,12 +409,11 @@ y_pred_abund <- fit$draws("occ_sim", format = "df") %>%
 
 head(y_pred_abund)
 
-post_df$true_rel_abund <- post_df$rel_abund / post_df$N_Birds
 post_df$abund_pred <- y_pred_abund$mean_value
 
 abund_resid_df <- post_df %>%
   mutate(
-    abund_resid = if_else(true_rel_abund != 0, true_rel_abund - abund_pred, NA)
+    abund_resid = rel_abund - abund_pred
   )
 
 cols <- RColorBrewer::brewer.pal(5, "Dark2") %>%
@@ -420,7 +421,7 @@ cols <- RColorBrewer::brewer.pal(5, "Dark2") %>%
 
 #Devon resid plot
 wint_dev_df <- abund_resid_df %>% 
-  filter(time_period == "pheasant_wint" & County == "Devon")
+  filter(time_period == "Winter" & County == "Devon")
 
 wint_dev_plot <- ggplot() + 
   geom_point(data = wint_dev_df, aes(x = X, y = Y, colour = abund_resid), size = 1) + 
@@ -433,7 +434,7 @@ ggsave(wint_dev_plot, path = "Outputs/plots/MS_final_plots/residual_plots/", fil
   units = "px", height = 990, width = 1280)
 
 breed_dev_df <- abund_resid_df %>% 
-  filter(time_period == "pheasant_breed" & County == "Devon")
+  filter(time_period == "Breeding" & County == "Devon")
 
 breed_dev_plot <- ggplot() + 
   geom_point(data = breed_dev_df, aes(x = X, y = Y, colour = abund_resid), size = 1) + 
@@ -447,7 +448,7 @@ ggsave(breed_dev_plot, path = "Outputs/plots/MS_final_plots/residual_plots/", fi
 
 #Cornwall resid plot
 wint_cw_df <- abund_resid_df %>% 
-  filter(time_period == "pheasant_wint" & County == "Cornwall")
+  filter(time_period == "Winter" & County == "Cornwall")
 
 wint_cw_plot <- ggplot() + 
   geom_point(data = wint_cw_df, aes(x = X, y = Y, colour = abund_resid), size = 1) + 
@@ -460,7 +461,7 @@ ggsave(wint_cw_plot, path = "Outputs/plots/MS_final_plots/residual_plots/", file
   units = "px", height = 990, width = 1280)
 
 breed_cw_df <- abund_resid_df %>% 
-  filter(time_period == "pheasant_breed" & County == "Cornwall")
+  filter(time_period == "Breeding" & County == "Cornwall")
 
 breed_cw_plot <- ggplot() + 
   geom_point(data = breed_cw_df, aes(x = X, y = Y, colour = abund_resid), size = 1) + 
@@ -475,7 +476,7 @@ ggsave(breed_cw_plot, path = "Outputs/plots/MS_final_plots/residual_plots/", fil
 
 #Berkshire resid plot
 wint_bk_df <- abund_resid_df %>% 
-  filter(time_period == "pheasant_wint" & County == "Berkshire")
+  filter(time_period == "Winter" & County == "Berkshire")
 
 wint_bk_plot <- ggplot() + 
   geom_point(data = wint_bk_df, aes(x = X, y = Y, colour = abund_resid), size = 2) + 
@@ -488,7 +489,7 @@ ggsave(wint_bk_plot, path = "Outputs/plots/MS_final_plots/residual_plots/", file
   units = "px", height = 420, width = 1280)
 
 breed_bk_df <- abund_resid_df %>% 
-  filter(time_period == "pheasant_breed" & County == "Berkshire")
+  filter(time_period == "Breeding" & County == "Berkshire")
 
 breed_bk_plot <- ggplot() + 
   geom_point(data = breed_bk_df, aes(x = X, y = Y, colour = abund_resid), size = 2) + 
@@ -502,7 +503,7 @@ ggsave(breed_bk_plot, path = "Outputs/plots/MS_final_plots/residual_plots/", fil
 
 #Hertfordshire resid plot
 wint_hf_df <- abund_resid_df %>% 
-  filter(time_period == "pheasant_wint" & County == "Hertfordshire")
+  filter(time_period == "Winter" & County == "Hertfordshire")
 
 wint_hf_plot <- ggplot() + 
   geom_point(data = wint_hf_df, aes(x = X, y = Y, colour = abund_resid), size = 2) + 
@@ -515,7 +516,7 @@ ggsave(wint_hf_plot, path = "Outputs/plots/MS_final_plots/residual_plots/", file
   units = "px", height = 780, width = 1280)
 
 breed_hf_df <- abund_resid_df %>% 
-  filter(time_period == "pheasant_breed" & County == "Hertfordshire")
+  filter(time_period == "Breeding" & County == "Hertfordshire")
 
 breed_hf_plot <- ggplot() + 
   geom_point(data = breed_hf_df, aes(x = X, y = Y, colour = abund_resid), size = 2) + 
