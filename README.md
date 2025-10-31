@@ -16,4 +16,4 @@ these locations without issue.
 
 All outputs should be set up to save to the 'Output' folder. 
 
-This respository was written by Luke Ozsanlav-Harris and Joe A. Wilde, and was created and published by Joe A. Wilde.
+This respository was written by Luke Ozsanlav-Harris and Joe A. Wilde, and was created and published by Joe A. Wilde..
