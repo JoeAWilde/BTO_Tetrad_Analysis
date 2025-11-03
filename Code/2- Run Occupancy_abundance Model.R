@@ -163,7 +163,7 @@ fit$save_object("Outputs/script_2/occ_abund_run.rds")
 fit <- readRDS("Outputs/script_2/occ_abund_run.rds")
 
 #Create a list of parameters of interest ####
-pars <- c("a_occ_mu", "sd_occ_tets", "a_abund_mu", "sd_abund_tets", "beta", "p_det_eta", "phi_county")
+pars <- c("a_occ_mu", "sd_occ_tets", "a_abund_mu", "sd_abund_tets", "beta", "p_det_eta", "phi")#_county")
 
 #Visualise a trace plot of model run ####
 mcmc_trace(fit$draws(pars))
