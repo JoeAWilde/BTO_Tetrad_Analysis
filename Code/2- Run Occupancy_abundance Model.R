@@ -83,25 +83,24 @@ for(i in 1:nrow(df)) {
 post_df <- df %>%
   mutate(
     new_tet = as.integer(factor(X, levels = unique(X))), 
+    new_county = as.integer(factor(County, levels = unique(County)))
     time_period = factor(time_period, levels = c("pheasant_wint", "pheasant_breed"))
   ) %>%
   group_by(County, time_period) %>% 
   mutate(
-    N_birds = sum(new_abund)
+    N_birds = sum(new_abund), 
+    rel_abund = new_abund / sum(N_birds)
   ) %>%
   ungroup() %>%
-  group_by(time_period) %>%
+  group_by(County) %>%
   mutate(
-    rel_abund = new_abund / max(N_birds)
+    N_tetrads = length(unique(new_tet))
   ) %>%
-  ungroup() %>%
-  mutate(
-    new_county = as.integer(factor(County, levels = unique(County)))
-  )
+  ungroup()
 
 #Create a dataframe of predictors
 options(na.action='na.pass')
-preds <- data.frame(model.matrix(~County + time_period + broad_wood + conif_wood + arable + imp_grass + 
+preds <- data.frame(model.matrix(~ County + time_period + broad_wood + conif_wood + arable + imp_grass + 
                                    semnat_grass + mountain + saltwater + freshwater +
                                    coastal + built_up + habitat_div_shannon + PA_suit,
                                  data = post_df)) %>%
@@ -127,7 +126,8 @@ preds <- preds %>%
     `CountyDevon:time_periodpheasant_breed:PA_suit` =  CountyDevon * time_periodpheasant_breed * PA_suit,    
     `CountyHertfordshire:time_periodpheasant_breed:PA_suit` = CountyHertfordshire * time_periodpheasant_breed * PA_suit,
     saltwater = if_else(is.na(saltwater), 0, saltwater),
-    coastal = if_else(is.na(coastal), 0, coastal)
+    coastal = if_else(is.na(coastal), 0, coastal), 
+    log_ntetrads = log(post_df$N_tetrads)
   ) %>%
   select(-berk_dummy)
 
