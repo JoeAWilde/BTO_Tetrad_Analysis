@@ -83,7 +83,7 @@ for(i in 1:nrow(df)) {
 post_df <- df %>%
   mutate(
     new_tet = as.integer(factor(X, levels = unique(X))), 
-    new_county = as.integer(factor(County, levels = unique(County)))
+    new_county = as.integer(factor(County, levels = unique(County))),
     time_period = factor(time_period, levels = c("pheasant_wint", "pheasant_breed"))
   ) %>%
   group_by(County, time_period) %>% 
