@@ -131,7 +131,7 @@ preds <- preds %>%
   ) %>%
   select(-berk_dummy)
 
-coords <- tetrad_coords %>% select(X, Y)
+coords <- post_df %>% select(X, Y)
 D <- dist(coords, method = "euclidean") %>% as.matrix()
 
 #Create a list of data for the model ####
