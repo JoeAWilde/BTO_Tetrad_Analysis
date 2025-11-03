@@ -131,6 +131,9 @@ preds <- preds %>%
   ) %>%
   select(-berk_dummy)
 
+coords <- tetrad_coords %>% select(X, Y)
+D <- dist(coords, method = "euclidean") %>% as.matrix()
+
 #Create a list of data for the model ####
 stan_data <- list(
   N = nrow(post_df), 
@@ -141,7 +144,8 @@ stan_data <- list(
   X = ncol(preds), 
   preds = preds, 
   occ = ifelse(post_df$rel_abund> 0, 1, 0), 
-  abund = post_df$rel_abund
+  abund = post_df$rel_abund, 
+  D = D # Distance matrix for the GP
 )
 
 #Compile the model ####
