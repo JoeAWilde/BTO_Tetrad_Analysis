@@ -48,7 +48,7 @@ model {
   sd_occ_tets ~ exponential(1);
   sd_abund_tets ~ exponential(1);
   
-  beta ~ normal(0, 1);
+  beta ~ normal(0, 0.1);
   
   p_det_eta ~ normal(0.5, 1);
   
