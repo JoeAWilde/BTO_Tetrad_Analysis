@@ -131,8 +131,7 @@ preds <- preds %>%
   ) %>%
   select(-berk_dummy)
 
-coords <- post_df %>% select(X, Y)
-D <- dist(coords, method = "euclidean") %>% as.matrix()
+
 
 #Create a list of data for the model ####
 stan_data <- list(
@@ -144,8 +143,7 @@ stan_data <- list(
   X = ncol(preds), 
   preds = preds, 
   occ = ifelse(post_df$rel_abund> 0, 1, 0), 
-  abund = post_df$rel_abund, 
-  D = D
+  abund = post_df$rel_abund
 )
 
 #Compile the model ####
@@ -186,7 +184,7 @@ pp_check(post_df$rel_abund , fit$draws("occ_sim", format = "matrix"),
 
 #Extract highest density interval ####
 all_draws <- fit$draws(pars, format = "df")
-names(all_draws)[5:29] <- names(preds)
+names(all_draws)[5:30] <- names(preds)
 hdi_alldraws <- HDInterval::hdi(all_draws)
 
 #Make plots of effect of PA ####

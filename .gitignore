@@ -11,3 +11,4 @@
 *.xml
 *.png
 Outputs/script_2/occ_abund_run.rds
+Code/Stan script/occ_abund_model.exe
