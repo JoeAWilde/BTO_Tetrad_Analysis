@@ -241,10 +241,10 @@ p1 <- ggplot() +
   scale_x_continuous(name = "Proportion of protected area coverage") + 
   theme_classic(base_size = 45) + 
   theme(legend.key.width = unit(2, "cm")) + 
-  coord_cartesian(ylim = c(0, 0.00125))
+  coord_cartesian(ylim = c(0, 0.005))
 
-p1
-ggsave(p1, filename = "Outputs/plots/MS_final_PA_effect.png", units = "px", height = 4320, width = 7890)
+# p1
+ggsave(p1, filename = "Outputs/plots/MS_final_plots/MS_final_PA_effect.png", units = "px", height = 4320, width = 7890)
 
 #Make plot of effect of bw ####
 #Create dataframe to simulate from ####
@@ -279,7 +279,7 @@ bw_sim_df$y_upp <- HDInterval::hdi(bw_y_sim)[2, ]
 
 #Plot the effect of broadlead woodland ####
 p2 <- ggplot() + 
-  # geom_point(data = post_df, aes(x = broad_wood/100, y = rel_abund / N_Birds, shape = factor(County), colour = time_period),
+  # geom_point(data = post_df, aes(x = broad_wood/100, y = rel_abund, shape = factor(County), colour = time_period),
   #            alpha = 0.4, size = 5) + 
   geom_ribbon(data = bw_sim_df, aes(x = broad_wood/100, ymin = y_low, ymax = y_upp, group = time_period, fill = time_period), alpha = 0.33) |> blend("multiply") + 
   geom_smooth(data = bw_sim_df, aes(x = broad_wood/100, y = y_mu, colour = time_period), se = F, linewidth = 3) + 
@@ -290,9 +290,9 @@ p2 <- ggplot() +
   scale_x_continuous(name = "Proportion of broadleaf woodland coverage") + 
   theme_classic(base_size = 45) +
   theme(legend.key.width = unit(2, "cm")) + 
-  coord_cartesian(ylim = c(0, 0.002))
-p2
-ggsave(p2, filename = "Outputs/plots/MS_final_bw_effect.png", units = "px", height = 4320, width = 7890)
+  coord_cartesian(ylim = c(0, 0.005))
+# p2
+ggsave(p2, filename = "Outputs/plots/MS_final_plots/MS_final_bw_effect.png", units = "px", height = 4320, width = 7890)
 
 
 #Create table of model summary
@@ -302,7 +302,7 @@ names(m1tidy)<-c("Parameter",
                  "Mean", "Median", "SD", "Mad", 
                  "5% quantile", "95% quantile", "R-hat", "Bulk", "Tail")
 
-m1hdis <- hdi(fit$draws(pars, format = "df")[, 1:34], credMass=0.95)
+m1hdis <- hdi(fit$draws(pars, format = "df")[, 1:32], credMass=0.95)
 
 m1tidy$Upper <- m1hdis[2,]
 m1tidy$Lower <- m1hdis[1,]
@@ -311,9 +311,9 @@ m1tidy$Lower <- m1hdis[1,]
 m1tidy$Group <- c(
   rep("Pr(Occupied)", 2), 
   rep("Abundance intercept", 2), 
-  rep("Abundance covariates", 25), 
+  rep("Abundance covariates", 26), 
   "Pr(Detection)", 
-  rep("Family-specific parameter (Beta)", 4)
+  "Family-specific parameter"
 )
 
 m1tidy$Parameter <- c(
@@ -346,21 +346,19 @@ m1tidy$Parameter <- c(
   "PA coverage × Time period: breeding × County: Cornwall", 
   "PA coverage × Time period: breeding × County: Devon", 
   "PA coverage × Time period: breeding × County: Hertfordshire", 
+  "log(No. tetrads)",
   "Pr(detection)", 
-  "Phi (precision): Devon", 
-  "Phi (precision): Hertfordshire", 
-  "Phi (precision): Berkshire", 
-  "Phi (precision): Cornwall"
+  "Phi (precision)"
 )
 
 p_det_draws <- fit$draws("p_det_eta", format = "df") %>%
   pull(p_det_eta) %>%
   boot::inv.logit(.)
 
-m1tidy[30, 2] <- mean(p_det_draws)
-m1tidy[30, 4] <- sd(p_det_draws)
-m1tidy[30, 12] <- hdi(p_det_draws)[1]
-m1tidy[30, 11] <- hdi(p_det_draws)[2]
+m1tidy[31, 2] <- mean(p_det_draws)
+m1tidy[31, 4] <- sd(p_det_draws)
+m1tidy[31, 12] <- hdi(p_det_draws)[1]
+m1tidy[31, 11] <- hdi(p_det_draws)[2]
 
 m1tidy[,2:(length(m1tidy)-1)] <- round(m1tidy[2:(length(m1tidy)-1)], digits = 2)
 m1tidy$`R-hat` <- round(m1tidy$`R-hat`, digits = 1)
@@ -370,7 +368,7 @@ m1tidy[,11:12] <- round(m1tidy[, 11:12], digits = 2)
 m1clean <- m1tidy %>%
   select(-c(`5% quantile`, `95% quantile`, Median, Mad, Group)) %>%
   select(Parameter, Mean, SD, Lower, Upper, `R-hat`, Bulk, Tail) %>%
-  .[c(30, 1:29, 31:34), ] %>%
+  .[c(31, 1:30, 32), ] %>%
   data.frame()
 
 table1 <- knitr::kable(m1clean, row.names = FALSE) %>%
@@ -387,7 +385,9 @@ table1 <- knitr::kable(m1clean, row.names = FALSE) %>%
             label_row_css = "background-color: white;") %>%
   pack_rows("Three-way interactions",start_row = 23, end_row = 30, 
             label_row_css = "background-color: white;") %>%
-  pack_rows("Family-specific parameters",start_row = 31, end_row = 34, 
+  pack_rows("Per-county offset", start_row = 31, end_row = 31, 
+            label_row_css = "background-color: white;") %>%
+  pack_rows("Family-specific parameters",start_row = 32, end_row = 32, 
             label_row_css = "background-color: white;") %>%
   row_spec(0,background = "white") %>%
   add_header_above(c(" " = 1, "Posterior values" = 2, "95% Highest Density Limits" = 2," " = 1, "Effective sample size" = 2)) %>%
